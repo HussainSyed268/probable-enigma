@@ -27,9 +27,8 @@ void addToHistory(const string& command);
 void printCommandHistory();
 void encryptFile(const string& filePath, const string& key);
 void decryptFile(const string& filePath, const string& key);
-void convertToPDF(const string& filePath);
-void setReminder(const time_t& time, const string& message);
 void downloadFile(const std::string& url);
+void displayDiskUsage();
 
 int main()
 {
@@ -97,16 +96,9 @@ int main()
             }
             continue;
         }
-        else if (strcmp(argv[0], "convert") == 0)
+        else if (strcmp(argv[0], "diskusage") == 0)
         {
-            if (argv[1] != NULL)
-            {
-                convertToPDF(argv[1]);
-            }
-            else
-            {
-                cout << "Please provide the file path to convert." << endl;
-            }
+            displayDiskUsage();
             continue;
         }
         else if (strcmp(argv[0], "download") == 0)
@@ -164,7 +156,6 @@ void StrTokenizer(char *input, char **argv)
         *argv++ = stringTokenized;
         stringTokenized = strtok(NULL, " ");
     }
-
     *argv = NULL;
 }
 
@@ -175,11 +166,9 @@ void addToHistory(const string& command)
 
 void printCommandHistory()
 {
-    int count = 1;
-    for (const auto& command : commandHistory)
+    for (const string& command : commandHistory)
     {
-        cout << count << ". " << command << endl;
-        count++;
+        cout << command << endl;
     }
 }
 
@@ -269,8 +258,8 @@ void decryptFile(const string& filePath, const string& key)
     // Remove padding from the last block if needed
     if (inputFile.gcount() > 0 && inputFile.gcount() < AES_BLOCK_SIZE)
     {
-        unsigned char padSize = outData[AES_BLOCK_SIZE - 1];
-        outputFile.write(reinterpret_cast<const char*>(outData), AES_BLOCK_SIZE - padSize);
+        unsigned char paddingLength = inData[AES_BLOCK_SIZE - 1];
+        outputFile.write(reinterpret_cast<const char*>(outData), AES_BLOCK_SIZE - paddingLength);
     }
 
     inputFile.close();
@@ -279,18 +268,29 @@ void decryptFile(const string& filePath, const string& key)
     cout << "Decryption completed. Decrypted file: " << filePath + ".dec" << endl;
 }
 
-void convertToPDF(const string& filePath)
+void displayDiskUsage()
 {
-    string command = "libreoffice --headless --convert-to pdf " + filePath + " --outdir " + filePath.substr(0, filePath.find_last_of('/'));
-    int status = system(command.c_str());
-    if (status == 0)
+    string command = "df -h";
+    string result;
+    FILE* pipe = popen(command.c_str(), "r");
+    if (!pipe)
     {
-        cout << "Conversion to PDF completed." << endl;
+        cout << "Failed to execute command." << endl;
+        return;
     }
-    else
+
+    char buffer[128];
+    while (!feof(pipe))
     {
-        cout << "Failed to convert to PDF." << endl;
+        if (fgets(buffer, 128, pipe) != NULL)
+        {
+            result += buffer;
+        }
     }
+
+    pclose(pipe);
+
+    cout << result << endl;
 }
 
 
