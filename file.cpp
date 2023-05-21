@@ -311,6 +311,23 @@ int main()
             getRAMUsage();
             continue;
         }
+         else if (strcmp(argv[0], "export") == 0)
+        {
+            if (argv[1] != NULL)
+            {
+                exportVariable(argv[1]);
+            }
+            else
+            {
+                cout << "Please provide the variable to export." << endl;
+            }
+            continue;
+        }
+        else if (strcmp(argv[0], "env") == 0)
+        {
+            printEnvironment();
+            continue;
+        }
 
         myExecvp(argv);
         addToHistory(input);
