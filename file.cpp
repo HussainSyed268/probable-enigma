@@ -11,6 +11,9 @@
 #include <fstream>
 #include <openssl/aes.h>
 #include <openssl/rand.h>
+#include <ctime>
+#include <curl/curl.h>
+
 
 #define AES_BLOCK_SIZE 16
 
@@ -25,6 +28,8 @@ void printCommandHistory();
 void encryptFile(const string& filePath, const string& key);
 void decryptFile(const string& filePath, const string& key);
 void convertToPDF(const string& filePath);
+void setReminder(const time_t& time, const string& message);
+void downloadFile(const std::string& url);
 
 int main()
 {
@@ -104,6 +109,18 @@ int main()
             }
             continue;
         }
+        else if (strcmp(argv[0], "download") == 0)
+{
+    if (argv[1] != NULL)
+    {
+        downloadFile(argv[1]);
+    }
+    else
+    {
+        std::cout << "Please provide the URL to download." << std::endl;
+    }
+    continue;
+}
 
         myExecvp(argv);
         addToHistory(input);
@@ -273,5 +290,52 @@ void convertToPDF(const string& filePath)
     else
     {
         cout << "Failed to convert to PDF." << endl;
+    }
+}
+
+
+size_t WriteCallback(void* contents, size_t size, size_t nmemb, void* userp)
+{
+    // Write the downloaded content to a file
+    std::ofstream outputFile(static_cast<const char*>(userp), std::ios::binary | std::ios::app);
+    outputFile.write(static_cast<const char*>(contents), size * nmemb);
+    outputFile.close();
+
+    return size * nmemb;
+}
+
+void downloadFile(const std::string& url)
+{
+    // Extract the filename from the URL
+    std::string filename = url.substr(url.find_last_of('/') + 1);
+
+    // Create a CURL handle
+    CURL* curl = curl_easy_init();
+    if (curl)
+    {
+        // Set the URL to download from
+        curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+
+        // Set the write callback function
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+
+        // Set the filename as user data
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, filename.c_str());
+
+        // Perform the download
+        CURLcode res = curl_easy_perform(curl);
+        if (res != CURLE_OK)
+        {
+            std::cout << "Failed to download file: " << curl_easy_strerror(res) << std::endl;
+        }
+
+        // Clean up the CURL handle
+        curl_easy_cleanup(curl);
+
+        std::cout << "Download completed. File saved as: " << filename << std::endl;
+    }
+    else
+    {
+        std::cout << "Failed to initialize CURL." << std::endl;
     }
 }
