@@ -43,109 +43,7 @@ void displayDiskUsage();
 vector<vector<char>> board(3, vector<char>(3, ' '));
 char currentPlayer = 'X';
 
-void getCPUStats()
-{
-    ifstream file("/sys/class/thermal/thermal_zone0/temp");
-    if (file)
-    {
-        string line;
-        getline(file, line);
-        float temp = stof(line) / 1000.0;
-        cout << "CPU Temperature: " << temp << "°C" << endl;
-        file.close();
-    }
-    else
-    {
-        cout << "Failed to open CPU temperature file." << endl;
-    }
-}
 
-
-void getCPUUsage()
-{
-    FILE* pipe = popen("top -bn1 | grep Cpu", "r");
-    if (pipe)
-    {
-        char buffer[128];
-        if (fgets(buffer, sizeof(buffer), pipe))
-        {
-            string cpuUsage(buffer);
-            size_t pos = cpuUsage.find_last_of(" ");
-            if (pos != string::npos)
-            {
-                cpuUsage = cpuUsage.substr(pos + 1);
-                cout << "CPU Usage: " << cpuUsage;
-            }
-        }
-        pclose(pipe);
-    }
-    else
-    {
-        cout << "Failed to get CPU usage." << endl;
-    }
-}
-
-void getSwapMemoryUsage()
-{
-    ifstream file("/proc/meminfo");
-    if (file)
-    {
-        string line;
-        while (getline(file, line))
-        {
-            if (line.find("SwapTotal") != string::npos)
-            {
-                stringstream ss(line);
-                string name;
-                int value;
-                ss >> name >> value;
-                cout << "Swap Memory: " << value << " kB" << endl;
-                break;
-            }
-        }
-        file.close();
-    }
-    else
-    {
-        cout << "Failed to open /proc/meminfo file." << endl;
-    }
-}
-
-void getRAMUsage()
-{
-    ifstream file("/proc/meminfo");
-    if (file)
-    {
-        string line;
-        vector<string> tokens;
-        while (getline(file, line))
-        {
-            tokens.clear();
-            istringstream iss(line);
-            copy(istream_iterator<string>(iss), istream_iterator<string>(), back_inserter(tokens));
-            if (tokens.size() >= 3 && tokens[0] == "MemTotal:")
-            {
-                int total = stoi(tokens[1]);
-                if (tokens[2] == "kB")
-                    total /= 1024;
-                cout << "Total RAM: " << total << " MB" << endl;
-            }
-            else if (tokens.size() >= 3 && tokens[0] == "MemAvailable:")
-            {
-                int available = stoi(tokens[1]);
-                if (tokens[2] == "kB")
-                    available /= 1024;
-                cout << "Available RAM: " << available << " MB" << endl;
-                break;
-            }
-        }
-        file.close();
-    }
-    else
-    {
-        cout << "Failed to open /proc/meminfo file." << endl;
-    }
-}
 
 void drawBoard()
 {
@@ -349,18 +247,6 @@ int main()
             }
             continue;
         }
-        else if (strcmp(argv[0], "sysinfocpu") == 0)
-        {
-            getCPUStats();
-            getCPUUsage();
-            continue;
-        }
-
-        else if (strcmp(argv[0], "sysinfomem") == 0)
-        {
-            getSwapMemoryUsage();
-            getRAMUsage();
-        }
         else if (strcmp(argv[0], "decrypt") == 0)
         {
             if (argv[1] != NULL)
@@ -402,17 +288,24 @@ int main()
             playTicTacToe();
             continue;
         }
-        else if (strcmp(argv[0], "sysinfocpu") == 0)
+        else if (strcmp(argv[0], "cpuuse") == 0)
         {
-                getCPUStats();
-                getCPUUsage();
-                continue;
+            getCPUUsage();
+            continue;
         }
-
-        else if (strcmp(argv[0], "sysinfomem") == 0)
+        else if (strcmp(argv[0], "cputemp") == 0)
+        {
+            getCPUStats();
+            continue;
+        }
+        else if (strcmp(argv[0], "memswap") == 0)
         {
             getSwapMemoryUsage();
+            continue;
+        }
+        else if (strcmp(argv[0], "memram") == 0) {
             getRAMUsage();
+            continue;
         }
 
         myExecvp(argv);
@@ -502,7 +395,6 @@ void getCPUUsage()
             size_t pos = cpuUsage.find_last_of(" ");
             if (pos != string::npos)
             {
-                cpuUsage = cpuUsage.substr(pos + 1);
                 cout << "CPU Usage: " << cpuUsage;
             }
         }
