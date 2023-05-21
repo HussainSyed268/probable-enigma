@@ -13,6 +13,10 @@
 #include <openssl/rand.h>
 #include <ctime>
 #include <curl/curl.h>
+<<<<<<< Updated upstream
+=======
+#include <unistd.h>
+>>>>>>> Stashed changes
 
 #define AES_BLOCK_SIZE 16
 
@@ -39,7 +43,7 @@ int main()
 
     while (true)
     {
-        cout << "cwushell-> ";
+        cout << "ProbableEnigma-> ";
         cin.getline(input, 250);
         StrTokenizer(input, argv);
 
@@ -116,6 +120,7 @@ int main()
             continue;
         }
         else if (strcmp(argv[0], "download") == 0)
+<<<<<<< Updated upstream
         {
             if (argv[1] != NULL)
             {
@@ -128,6 +133,19 @@ int main()
             continue;
         }
 
+=======
+{
+    if (argv[1] != NULL)
+    {
+        downloadFile(argv[1]);
+    }
+    else
+    {
+        std::cout << "Please provide the URL to download." << std::endl;
+    }
+    continue;
+}
+>>>>>>> Stashed changes
         myExecvp(argv);
         addToHistory(input);
     }
