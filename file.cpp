@@ -40,6 +40,10 @@ void decryptFile(const string& filePath, const string& key);
 void downloadFile(const std::string& url);
 void changeTerminalColor(char *color);
 void displayDiskUsage();
+void exportVariable(const string& variable);
+void printEnvironment();
+
+
 vector<vector<char>> board(3, vector<char>(3, ' '));
 char currentPlayer = 'X';
 
@@ -633,4 +637,23 @@ void downloadFile(const std::string &url)
     {
         std::cout << "Failed to initialize CURL." << std::endl;
     }
+}
+
+void exportVariable(const string& variable)
+{
+    string command = "export " + variable;
+    if (system(command.c_str()) == -1)
+    {
+        cout << "Failed to export variable." << endl;
+    }
+    else
+    {
+        cout << "Variable exported successfully." << endl;
+    }
+}
+
+void printEnvironment()
+{
+    char* env = getenv("PATH");
+    cout << "Environment variable PATH: " << env << endl;
 }
