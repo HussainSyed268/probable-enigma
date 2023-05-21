@@ -14,7 +14,6 @@
 #include <ctime>
 #include <curl/curl.h>
 
-
 #define AES_BLOCK_SIZE 16
 
 using namespace std;
@@ -23,13 +22,16 @@ vector<string> commandHistory;
 
 void StrTokenizer(char *line, char **argv);
 void myExecvp(char **argv);
-void addToHistory(const string& command);
+void addToHistory(const string &command);
 void printCommandHistory();
-void encryptFile(const string& filePath, const string& key);
-void decryptFile(const string& filePath, const string& key);
-void downloadFile(const std::string& url);
+void encryptFile(const string &filePath, const string &key);
+void decryptFile(const string &filePath, const string &key);
+void downloadFile(const std::string &url);
 void displayDiskUsage();
-
+void getCPUStats();
+void getCPUUsage();
+void getSwapMemoryUsage();
+void getRAMUsage();
 int main()
 {
     char input[250];
@@ -77,6 +79,18 @@ int main()
             }
             continue;
         }
+        else if (strcmp(argv[0], "sysinfocpu") == 0)
+        {
+            getCPUStats();
+            getCPUUsage();
+            continue;
+        }
+
+        else if (strcmp(argv[0], "sysinfomem") == 0)
+        {
+            getSwapMemoryUsage();
+            getRAMUsage();
+        }
         else if (strcmp(argv[0], "decrypt") == 0)
         {
             if (argv[1] != NULL)
@@ -102,17 +116,17 @@ int main()
             continue;
         }
         else if (strcmp(argv[0], "download") == 0)
-{
-    if (argv[1] != NULL)
-    {
-        downloadFile(argv[1]);
-    }
-    else
-    {
-        std::cout << "Please provide the URL to download." << std::endl;
-    }
-    continue;
-}
+        {
+            if (argv[1] != NULL)
+            {
+                downloadFile(argv[1]);
+            }
+            else
+            {
+                std::cout << "Please provide the URL to download." << std::endl;
+            }
+            continue;
+        }
 
         myExecvp(argv);
         addToHistory(input);
@@ -159,20 +173,123 @@ void StrTokenizer(char *input, char **argv)
     *argv = NULL;
 }
 
-void addToHistory(const string& command)
+void addToHistory(const string &command)
 {
     commandHistory.push_back(command);
 }
 
 void printCommandHistory()
 {
-    for (const string& command : commandHistory)
+    for (const string &command : commandHistory)
     {
         cout << command << endl;
     }
 }
 
-void encryptFile(const string& filePath, const string& key)
+void getCPUStats()
+{
+    ifstream file("/sys/class/thermal/thermal_zone0/temp");
+    if (file)
+    {
+        string line;
+        getline(file, line);
+        float temp = stof(line) / 1000.0;
+        cout << "CPU Temperature: " << temp << "°C" << endl;
+        file.close();
+    }
+    else
+    {
+        cout << "Failed to open CPU temperature file." << endl;
+    }
+}
+
+void getCPUUsage()
+{
+    FILE *pipe = popen("top -bn1 | grep Cpu", "r");
+    if (pipe)
+    {
+        char buffer[128];
+        if (fgets(buffer, sizeof(buffer), pipe))
+        {
+            string cpuUsage(buffer);
+            size_t pos = cpuUsage.find_last_of(" ");
+            if (pos != string::npos)
+            {
+                cpuUsage = cpuUsage.substr(pos + 1);
+                cout << "CPU Usage: " << cpuUsage;
+            }
+        }
+        pclose(pipe);
+    }
+    else
+    {
+        cout << "Failed to get CPU usage." << endl;
+    }
+}
+
+void getSwapMemoryUsage()
+{
+    ifstream file("/proc/meminfo");
+    if (file)
+    {
+        string line;
+        while (getline(file, line))
+        {
+            if (line.find("SwapTotal") != string::npos)
+            {
+                stringstream ss(line);
+                string name;
+                int value;
+                ss >> name >> value;
+                cout << "Swap Memory: " << value << " kB" << endl;
+                break;
+            }
+        }
+        file.close();
+    }
+    else
+    {
+        cout << "Failed to open /proc/meminfo file." << endl;
+    }
+}
+
+void getRAMUsage()
+{
+    ifstream file("/proc/meminfo");
+    if (file)
+    {
+        string line;
+        vector<string> tokens;
+        while (getline(file, line))
+        {
+            tokens.clear();
+            istringstream iss(line);
+            copy(istream_iterator<string>(iss), istream_iterator<string>(), back_inserter(tokens));
+            if (tokens.size() >= 3 && tokens[0] == "MemTotal:")
+            {
+                int total = stoi(tokens[1]);
+                if (tokens[2] == "kB")
+                    total /= 1024;
+                cout << "Total RAM: " << total << " MB" << endl;
+            }
+            else if (tokens.size() >= 3 && tokens[0] == "MemAvailable:")
+            {
+                int available = stoi(tokens[1]);
+                if (tokens[2] == "kB")
+                    available /= 1024;
+                cout << "Available RAM: " << available << " MB" << endl;
+                break;
+            }
+        }
+        file.close();
+    }
+    else
+    {
+        cout << "Failed to open /proc/meminfo file." << endl;
+    }
+}
+
+void encryptFile(const string &filePath, const string &key)
 {
     ifstream inputFile(filePath, ios::binary);
     if (!inputFile)
@@ -193,19 +310,19 @@ void encryptFile(const string& filePath, const string& key)
     RAND_bytes(iv, AES_BLOCK_SIZE);
 
     // Write the IV to the output file
-    outputFile.write(reinterpret_cast<const char*>(iv), AES_BLOCK_SIZE);
+    outputFile.write(reinterpret_cast<const char *>(iv), AES_BLOCK_SIZE);
 
     AES_KEY aesKey;
-    AES_set_encrypt_key(reinterpret_cast<const unsigned char*>(key.c_str()), 128, &aesKey);
+    AES_set_encrypt_key(reinterpret_cast<const unsigned char *>(key.c_str()), 128, &aesKey);
 
     unsigned char inData[AES_BLOCK_SIZE];
     unsigned char outData[AES_BLOCK_SIZE];
 
     // Encrypt and write the input file content to the output file
-    while (inputFile.read(reinterpret_cast<char*>(inData), AES_BLOCK_SIZE))
+    while (inputFile.read(reinterpret_cast<char *>(inData), AES_BLOCK_SIZE))
     {
         AES_encrypt(inData, outData, &aesKey);
-        outputFile.write(reinterpret_cast<const char*>(outData), AES_BLOCK_SIZE);
+        outputFile.write(reinterpret_cast<const char *>(outData), AES_BLOCK_SIZE);
     }
 
     // Pad the last block if needed
@@ -213,7 +330,7 @@ void encryptFile(const string& filePath, const string& key)
     {
         memset(inData + inputFile.gcount(), AES_BLOCK_SIZE - inputFile.gcount(), AES_BLOCK_SIZE - inputFile.gcount());
         AES_encrypt(inData, outData, &aesKey);
-        outputFile.write(reinterpret_cast<const char*>(outData), AES_BLOCK_SIZE);
+        outputFile.write(reinterpret_cast<const char *>(outData), AES_BLOCK_SIZE);
     }
 
     inputFile.close();
@@ -222,7 +339,7 @@ void encryptFile(const string& filePath, const string& key)
     cout << "Encryption completed. Encrypted file: " << filePath + ".enc" << endl;
 }
 
-void decryptFile(const string& filePath, const string& key)
+void decryptFile(const string &filePath, const string &key)
 {
     ifstream inputFile(filePath, ios::binary);
     if (!inputFile)
@@ -240,26 +357,26 @@ void decryptFile(const string& filePath, const string& key)
 
     // Read the IV from the input file
     unsigned char iv[AES_BLOCK_SIZE];
-    inputFile.read(reinterpret_cast<char*>(iv), AES_BLOCK_SIZE);
+    inputFile.read(reinterpret_cast<char *>(iv), AES_BLOCK_SIZE);
 
     AES_KEY aesKey;
-    AES_set_decrypt_key(reinterpret_cast<const unsigned char*>(key.c_str()), 128, &aesKey);
+    AES_set_decrypt_key(reinterpret_cast<const unsigned char *>(key.c_str()), 128, &aesKey);
 
     unsigned char inData[AES_BLOCK_SIZE];
     unsigned char outData[AES_BLOCK_SIZE];
 
     // Decrypt and write the input file content to the output file
-    while (inputFile.read(reinterpret_cast<char*>(inData), AES_BLOCK_SIZE))
+    while (inputFile.read(reinterpret_cast<char *>(inData), AES_BLOCK_SIZE))
     {
         AES_decrypt(inData, outData, &aesKey);
-        outputFile.write(reinterpret_cast<const char*>(outData), AES_BLOCK_SIZE);
+        outputFile.write(reinterpret_cast<const char *>(outData), AES_BLOCK_SIZE);
     }
 
     // Remove padding from the last block if needed
     if (inputFile.gcount() > 0 && inputFile.gcount() < AES_BLOCK_SIZE)
     {
         unsigned char paddingLength = inData[AES_BLOCK_SIZE - 1];
-        outputFile.write(reinterpret_cast<const char*>(outData), AES_BLOCK_SIZE - paddingLength);
+        outputFile.write(reinterpret_cast<const char *>(outData), AES_BLOCK_SIZE - paddingLength);
     }
 
     inputFile.close();
@@ -272,7 +389,7 @@ void displayDiskUsage()
 {
     string command = "df -h";
     string result;
-    FILE* pipe = popen(command.c_str(), "r");
+    FILE *pipe = popen(command.c_str(), "r");
     if (!pipe)
     {
         cout << "Failed to execute command." << endl;
@@ -293,24 +410,23 @@ void displayDiskUsage()
     cout << result << endl;
 }
 
-
-size_t WriteCallback(void* contents, size_t size, size_t nmemb, void* userp)
+size_t WriteCallback(void *contents, size_t size, size_t nmemb, void *userp)
 {
     // Write the downloaded content to a file
-    std::ofstream outputFile(static_cast<const char*>(userp), std::ios::binary | std::ios::app);
-    outputFile.write(static_cast<const char*>(contents), size * nmemb);
+    std::ofstream outputFile(static_cast<const char *>(userp), std::ios::binary | std::ios::app);
+    outputFile.write(static_cast<const char *>(contents), size * nmemb);
     outputFile.close();
 
     return size * nmemb;
 }
 
-void downloadFile(const std::string& url)
+void downloadFile(const std::string &url)
 {
     // Extract the filename from the URL
     std::string filename = url.substr(url.find_last_of('/') + 1);
 
     // Create a CURL handle
-    CURL* curl = curl_easy_init();
+    CURL *curl = curl_easy_init();
     if (curl)
     {
         // Set the URL to download from
