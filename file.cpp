@@ -11,12 +11,11 @@
 #include <fstream>
 #include <openssl/aes.h>
 #include <openssl/rand.h>
+#include <sstream>
+#include <iterator>
 #include <ctime>
 #include <curl/curl.h>
-<<<<<<< Updated upstream
-=======
 #include <unistd.h>
->>>>>>> Stashed changes
 
 #define AES_BLOCK_SIZE 16
 
@@ -36,8 +35,253 @@ void getCPUStats();
 void getCPUUsage();
 void getSwapMemoryUsage();
 void getRAMUsage();
+void encryptFile(const string& filePath, const string& key);
+void decryptFile(const string& filePath, const string& key);
+void downloadFile(const std::string& url);
+void changeTerminalColor(char *color);
+void displayDiskUsage();
+vector<vector<char>> board(3, vector<char>(3, ' '));
+char currentPlayer = 'X';
+
+void getCPUStats()
+{
+    ifstream file("/sys/class/thermal/thermal_zone0/temp");
+    if (file)
+    {
+        string line;
+        getline(file, line);
+        float temp = stof(line) / 1000.0;
+        cout << "CPU Temperature: " << temp << "°C" << endl;
+        file.close();
+    }
+    else
+    {
+        cout << "Failed to open CPU temperature file." << endl;
+    }
+}
+
+
+void getCPUUsage()
+{
+    FILE* pipe = popen("top -bn1 | grep Cpu", "r");
+    if (pipe)
+    {
+        char buffer[128];
+        if (fgets(buffer, sizeof(buffer), pipe))
+        {
+            string cpuUsage(buffer);
+            size_t pos = cpuUsage.find_last_of(" ");
+            if (pos != string::npos)
+            {
+                cpuUsage = cpuUsage.substr(pos + 1);
+                cout << "CPU Usage: " << cpuUsage;
+            }
+        }
+        pclose(pipe);
+    }
+    else
+    {
+        cout << "Failed to get CPU usage." << endl;
+    }
+}
+
+void getSwapMemoryUsage()
+{
+    ifstream file("/proc/meminfo");
+    if (file)
+    {
+        string line;
+        while (getline(file, line))
+        {
+            if (line.find("SwapTotal") != string::npos)
+            {
+                stringstream ss(line);
+                string name;
+                int value;
+                ss >> name >> value;
+                cout << "Swap Memory: " << value << " kB" << endl;
+                break;
+            }
+        }
+        file.close();
+    }
+    else
+    {
+        cout << "Failed to open /proc/meminfo file." << endl;
+    }
+}
+
+void getRAMUsage()
+{
+    ifstream file("/proc/meminfo");
+    if (file)
+    {
+        string line;
+        vector<string> tokens;
+        while (getline(file, line))
+        {
+            tokens.clear();
+            istringstream iss(line);
+            copy(istream_iterator<string>(iss), istream_iterator<string>(), back_inserter(tokens));
+            if (tokens.size() >= 3 && tokens[0] == "MemTotal:")
+            {
+                int total = stoi(tokens[1]);
+                if (tokens[2] == "kB")
+                    total /= 1024;
+                cout << "Total RAM: " << total << " MB" << endl;
+            }
+            else if (tokens.size() >= 3 && tokens[0] == "MemAvailable:")
+            {
+                int available = stoi(tokens[1]);
+                if (tokens[2] == "kB")
+                    available /= 1024;
+                cout << "Available RAM: " << available << " MB" << endl;
+                break;
+            }
+        }
+        file.close();
+    }
+    else
+    {
+        cout << "Failed to open /proc/meminfo file." << endl;
+    }
+}
+
+void drawBoard()
+{
+    cout << "-------------" << endl;
+    for (int i = 0; i < 3; i++)
+    {
+        cout << "| ";
+        for (int j = 0; j < 3; j++)
+        {
+            cout << board[i][j] << " | ";
+        }
+        cout << endl << "-------------" << endl;
+    }
+}
+
+void makeMove(int row, int col)
+{
+    if (row < 0 || row >= 3 || col < 0 || col >= 3 || board[row][col] != ' ')
+    {
+        cout << "Invalid move. Try again." << endl;
+        return;
+    }
+
+    board[row][col] = currentPlayer;
+    currentPlayer = (currentPlayer == 'X') ? 'O' : 'X';
+
+    drawBoard();
+}
+
+bool checkWin()
+{
+    // Check rows
+    for (int i = 0; i < 3; i++)
+    {
+        if (board[i][0] == board[i][1] && board[i][1] == board[i][2] && board[i][0] != ' ')
+        {
+            return true;
+        }
+    }
+
+    // Check columns
+    for (int i = 0; i < 3; i++)
+    {
+        if (board[0][i] == board[1][i] && board[1][i] == board[2][i] && board[0][i] != ' ')
+        {
+            return true;
+        }
+    }
+
+    // Check diagonals
+    if ((board[0][0] == board[1][1] && board[1][1] == board[2][2] && board[0][0] != ' ') ||
+        (board[0][2] == board[1][1] && board[1][1] == board[2][0] && board[0][2] != ' '))
+    {
+        return true;
+    }
+
+    return false;
+}
+
+bool checkDraw()
+{
+    for (int i = 0; i < 3; i++)
+    {
+        for (int j = 0; j < 3; j++)
+        {
+            if (board[i][j] == ' ')
+            {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+
+void changeTerminalColor(char *color)
+{
+    if (strcmp(color, "rgb") == 0)
+    {
+        // Seamless transition through all colors (e.g., RGB)
+        for (int r = 0; r < 256; r++)
+        {
+            for (int g = 0; g < 256; g++)
+            {
+                for (int b = 0; b < 256; b++)
+                {
+                    char command[50];
+                    sprintf(command, "tput setaf %d", r);
+                    system(command);
+                    sprintf(command, "tput setab %d", b);
+                    system(command);
+                    sprintf(command, "clear");
+                    system(command);
+                    usleep(100000); // Delay for smooth transition (adjust as needed)
+                }
+            }
+        }
+    }
+    else
+    {
+        // Set terminal color based on the provided color input
+        char command[50];
+        sprintf(command, "tput setaf %s", color);
+        system(command);
+    }
+}
+
+void playTicTacToe()
+{
+    cout << "Starting Tic-Tac-Toe..." << endl;
+    drawBoard();
+
+    while (true)
+    {
+        int row, col;
+        cout << "Player " << currentPlayer << ", enter your move (row col): ";
+        cin >> row >> col;
+
+        makeMove(row, col);
+
+        if (checkWin())
+        {
+            cout << "Player " << currentPlayer << " wins!" << endl;
+            break;
+        }
+
+        if (checkDraw())
+        {
+            cout << "It's a draw!" << endl;
+            break;
+        }
+    }
+}
 int main()
 {
+    bool rgbMode = false;
     char input[250];
     char *argv[250];
 
@@ -59,6 +303,28 @@ int main()
             }
             continue;
         }
+
+        else if (strcmp(argv[0], "color") == 0) // Check if the command is for changing the color
+        {
+            if (argv[1] != NULL)
+            {
+                if (strcmp(argv[1], "rgb") == 0)
+                {
+                    rgbMode = true; // Enable RGB mode
+                    changeTerminalColor(argv[1]);
+                }
+                else
+                {
+                    rgbMode = false; // Disable RGB mode
+                    changeTerminalColor(argv[1]);
+                }
+            }
+            else
+            {
+                cout << "Invalid color input!" << endl;
+            }
+        }
+
         else if (strcmp(argv[0], "history") == 0)
         {
             printCommandHistory();
@@ -120,7 +386,6 @@ int main()
             continue;
         }
         else if (strcmp(argv[0], "download") == 0)
-<<<<<<< Updated upstream
         {
             if (argv[1] != NULL)
             {
@@ -132,20 +397,24 @@ int main()
             }
             continue;
         }
+        else if (strcmp(argv[0], "tictactoe") == 0)
+        {
+            playTicTacToe();
+            continue;
+        }
+        else if (strcmp(argv[0], "sysinfocpu") == 0)
+        {
+                getCPUStats();
+                getCPUUsage();
+                continue;
+        }
 
-=======
-{
-    if (argv[1] != NULL)
-    {
-        downloadFile(argv[1]);
-    }
-    else
-    {
-        std::cout << "Please provide the URL to download." << std::endl;
-    }
-    continue;
-}
->>>>>>> Stashed changes
+        else if (strcmp(argv[0], "sysinfomem") == 0)
+        {
+            getSwapMemoryUsage();
+            getRAMUsage();
+        }
+
         myExecvp(argv);
         addToHistory(input);
     }
